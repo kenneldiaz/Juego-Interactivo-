@@ -337,15 +337,15 @@
       function openAdmin() {
         if (!db) { toast("El panel admin requiere conexión con Supabase.", true); return; }
         if (state.isAdmin) { showScreen("admin"); return; }
-        showModal("ACCESO ADMIN", `<p class="text-sm text-slate-300">Recibe un enlace de acceso de un solo uso en el correo administrador.</p><label class="eyebrow" for="admin-email">CORREO ADMINISTRADOR</label><input id="admin-email" class="field mt-1" type="email" autocomplete="email" value="${esc(ADMIN_EMAIL)}"><button id="send-admin-link" class="btn btn-primary mt-3 w-full">ENVIAR ENLACE DE ACCESO</button><p class="text-[10px] text-slate-500">La autorización se valida en Supabase; el correo por sí solo no concede permisos.</p>`);
-        $("send-admin-link").onclick = async () => {
-          const email = $("admin-email").value.trim().toLowerCase();
-          if (!email || !email.includes("@")) { toast("Escribe un correo válido.", true); return; }
-          const button = $("send-admin-link"); button.disabled = true; button.textContent = "ENVIANDO…";
-          const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
-          button.disabled = false; button.textContent = "ENVIAR ENLACE DE ACCESO";
-          if (error) { console.error("No se pudo enviar el enlace admin:", error); toast("No se pudo enviar el enlace: " + error.message, true); return; }
-          showModal("REVISA TU CORREO", `<p class="text-sm text-slate-300">Enviamos un enlace de acceso a <strong class="text-cyan-200">${esc(email)}</strong>. Ábrelo en este navegador para continuar.</p>`);
+                showModal("ACCESO ADMIN", `<p class="text-sm text-slate-300">Introduce la contraseña de la cuenta administradora.</p><label class="eyebrow" for="admin-password">CONTRASEÑA</label><input id="admin-password" class="field mt-1" type="password" autocomplete="current-password"><button id="admin-login" class="btn btn-primary mt-3 w-full">ENTRAR</button><p class="text-[10px] text-slate-500">Supabase valida la contraseña y el permiso administrativo en el servidor.</p>`);
+        $("admin-login").onclick = async () => {
+          const password = $("admin-password").value;
+          if (!password) { toast("Escribe la contraseña.", true); return; }
+          const button = $("admin-login"); button.disabled = true; button.textContent = "VERIFICANDO…";
+          const { data, error } = await db.auth.signInWithPassword({ email: ADMIN_EMAIL, password });
+          button.disabled = false; button.textContent = "ENTRAR"; $("admin-password").value = "";
+          if (error) { console.error("No se pudo iniciar sesión admin:", error); toast("Contraseña incorrecta o acceso no disponible.", true); return; }
+          await refreshAdminAccess(data.session);
         };
       }
       async function signOutAdmin() {
@@ -494,7 +494,7 @@
         state.pos={...DEMO_CENTER}; loadDemo();
         if(db){
           db.auth.onAuthStateChange((event,session)=>{
-            if(event==="SIGNED_IN")setTimeout(()=>refreshAdminAccess(session),0);
+
             if(event==="SIGNED_OUT"){state.isAdmin=false;if(!$("admin-screen").classList.contains("hidden"))showScreen("home");}
           });
           try{await loadRemote();startRealtime();}
