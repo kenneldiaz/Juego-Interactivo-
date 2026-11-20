@@ -108,7 +108,7 @@
       </section>
 
       <section id="admin-screen" class="hidden space-y-4">
-        <div class="flex items-center justify-between"><div><div class="eyebrow">Control de cacería</div><h2 class="display text-2xl font-bold">ADMIN <span class="text-rose-400">//</span></h2></div><button id="admin-back" class="btn btn-quiet min-h-10 px-3 py-2 text-[10px]">← INICIO</button></div>
+        <div class="flex items-center justify-between"><div><div class="eyebrow">Control de cacería</div><h2 class="display text-2xl font-bold">ADMIN <span class="text-rose-400">//</span></h2></div><div class="flex gap-2"><button id="admin-signout" class="btn btn-quiet min-h-10 px-3 py-2 text-[10px]">CERRAR SESIÓN</button><button id="admin-back" class="btn btn-quiet min-h-10 px-3 py-2 text-[10px]">← INICIO</button></div></div>
         <div class="flex rounded-xl border border-slate-800 bg-slate-950 p-1">
           <button data-tab="new" class="admin-tab flex-1 rounded-lg bg-cyan-400/10 py-2.5 text-xs font-bold text-cyan-200">NUEVA RONDA</button>
           <button data-tab="review" class="admin-tab flex-1 rounded-lg py-2.5 text-xs font-bold text-slate-500">VALIDACIÓN / RANKING</button>
@@ -131,7 +131,7 @@
           <div class="grid grid-cols-2 gap-2"><button id="approve-claim" class="btn btn-green text-[10px]" disabled>✓ APROBAR</button><button id="reopen-round" class="btn btn-danger text-[10px]" disabled>ANULAR / REACTIVAR</button></div>
           <div class="border-t border-slate-800 pt-3"><div class="eyebrow">Temporada</div><div id="admin-ranking" class="mt-3 space-y-2"></div><button id="reset-ranking" class="btn btn-quiet mt-4 w-full text-[10px]">REINICIAR TABLA DE PUNTOS</button></div>
         </div>
-        <p class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-[10px] leading-relaxed text-amber-200/75">Prototipo: el PIN se valida en el navegador y las políticas anónimas permiten escritura. No es control de acceso seguro. Para producción, mueve administración y reclamos a funciones de servidor con identidad y validación.</p>
+        <p class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-[10px] leading-relaxed text-amber-200/75">Panel protegido con Supabase Auth y RLS. Los puntos se otorgan únicamente cuando un administrador valida la foto de prueba.</p>
       </section>
 
       <section id="victory-screen" class="hidden space-y-5 pt-10 text-center">
@@ -161,6 +161,7 @@
     // Pega aquí las credenciales públicas del proyecto. Nunca coloques una service_role key en el navegador.
     const SUPABASE_URL = "https://djkbubafjktjapuouseq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqa2J1YmFmamt0amFwdW91c2VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUyMDE4ODAsImV4cCI6MjExMDc3Nzg4MH0.t4c7xv4K_C4qlUltqBuIm0jptpB8xdVYu2MWEDBIx2s";
+    const ADMIN_EMAIL = "kenneldiaz7@gmail.com";
 
     (() => {
       "use strict";
@@ -169,7 +170,7 @@
       let db = readyForSupabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
       const DEMO_CENTER = { lat: 19.4326, lng: -99.1332 };
       const freshDemoRound = () => ({ id: 1, numero_ronda: 1, titulo: "La pieza perdida", direccion: "Roma Norte · CDMX", premio: "Kit de ruta sorpresa", puntos: 500, lat: 19.4331, lng: -99.1332, foto_pista_url: "", estado: "ACTIVO", ganador_usuario: null, foto_prueba_url: null });
-      const state = { round: freshDemoRound(), user: "", pos: null, rivals: [], ranking: [{ usuario: "motera_luna", puntos: 1850, rondas_ganadas: 4 }, { usuario: "rider.mx", puntos: 1300, rondas_ganadas: 3 }, { usuario: "casco_rojo", puntos: 900, rondas_ganadas: 2 }], mode: db ? "remote" : "demo", dist: Infinity, audio: null, gpsWatch: null, lastPosSync: 0, maps: {}, markers: {}, coords: { ...DEMO_CENTER } };
+      const state = { round: freshDemoRound(), user: "", pos: null, rivals: [], ranking: [{ usuario: "motera_luna", puntos: 1850, rondas_ganadas: 4 }, { usuario: "rider.mx", puntos: 1300, rondas_ganadas: 3 }, { usuario: "casco_rojo", puntos: 900, rondas_ganadas: 2 }], mode: db ? "remote" : "demo", isAdmin: false, dist: Infinity, audio: null, gpsWatch: null, lastPosSync: 0, maps: {}, markers: {}, coords: { ...DEMO_CENTER } };
       let toastTimer;
 
       function toast(message, error) {
@@ -217,7 +218,7 @@
         $("round-state").textContent = roundIsActive() ? "● ACTIVO" : "● RECLAMADO / BLOQUEADO";
         $("round-state").className = "rounded-full px-2.5 py-1 text-[9px] font-bold tracking-[.14em] " + (roundIsActive() ? "bg-emerald-400/10 text-emerald-300" : "bg-rose-500/10 text-rose-300");
         $("winner-line").classList.toggle("hidden", roundIsActive());
-        $("winner-line").textContent = r.ganador_usuario ? "Sticker reclamado por @" + r.ganador_usuario + " · Ronda bloqueada." : "Ronda bloqueada.";
+        $("winner-line").textContent = r.ganador_usuario ? (r.reclamo_aprobado ? "Reclamo aprobado para @" + r.ganador_usuario + " · Ronda bloqueada." : "Prueba de @" + r.ganador_usuario + " pendiente de validación · puntos sin otorgar.") : "Ronda bloqueada.";
         $("join-button").disabled = !roundIsActive();
         $("join-button").classList.toggle("opacity-40", !roundIsActive());
         renderRanking();
@@ -231,9 +232,10 @@
       }
       function renderReview() {
         const claimed = state.round.estado === "RECLAMADO" && state.round.ganador_usuario;
-        $("approve-claim").disabled = !claimed; $("reopen-round").disabled = !claimed;
+        $("approve-claim").disabled = !claimed || state.round.reclamo_aprobado === true;
+        $("reopen-round").disabled = !claimed;
         $("claim-review").innerHTML = claimed
-          ? `<div class="font-semibold text-white">Reclamo de <span class="text-cyan-200">@${esc(state.round.ganador_usuario)}</span></div><div class="mt-1 text-[10px] ${state.round.reclamo_aprobado?"text-emerald-300":"text-amber-300"}">${state.round.reclamo_aprobado?"RECLAMO APROBADO":"PENDIENTE DE VALIDACIÓN"}</div>${state.round.foto_prueba_url ? `<img src="${esc(state.round.foto_prueba_url)}" alt="Foto de prueba" class="mt-3 max-h-56 w-full rounded-lg object-cover">` : '<p class="mt-2 text-xs text-amber-300">No hay URL de foto de prueba guardada.</p>'}<p class="mt-2 text-[10px] text-slate-500">El reclamo bloqueó esta ronda automáticamente.</p>`
+          ? `<div class="font-semibold text-white">Reclamo de <span class="text-cyan-200">@${esc(state.round.ganador_usuario)}</span></div><div class="mt-1 text-[10px] ${state.round.reclamo_aprobado?"text-emerald-300":"text-amber-300"}">${state.round.reclamo_aprobado?"RECLAMO APROBADO · PUNTOS OTORGADOS":"PENDIENTE DE VALIDACIÓN · SIN PUNTOS"}</div>${state.round.foto_prueba_url ? `<img src="${esc(state.round.foto_prueba_url)}" alt="Foto de prueba" class="mt-3 max-h-56 w-full rounded-lg object-cover">` : '<p class="mt-2 text-xs text-amber-300">No hay URL de foto de prueba guardada.</p>'}<p class="mt-2 text-[10px] text-slate-500">El reclamo bloqueó esta ronda automáticamente.</p>`
           : "No hay reclamo pendiente.";
       }
       function normalizeUser(value) { return value.trim().replace(/^@+/, "").replace(/[^a-zA-Z0-9._]/g, "").slice(0,24); }
@@ -314,14 +316,48 @@
         map.setView([state.coords.lat,state.coords.lng],map.getZoom());
       }
       function updateCoordLabel(){ $("coord-readout").textContent = state.coords.lat.toFixed(5)+", "+state.coords.lng.toFixed(5); }
+      async function refreshAdminAccess(session) {
+        if (!db || !session) { state.isAdmin = false; return; }
+        const { data, error } = await db.rpc("is_radar_admin");
+        if (error) {
+          console.error("No se pudo verificar el rol de administrador:", error);
+          toast("No se pudo verificar el acceso de administrador.", true);
+          return;
+        }
+        if (data !== true) {
+          state.isAdmin = false;
+          await db.auth.signOut();
+          toast("Esta cuenta no está autorizada como administradora.", true);
+          return;
+        }
+        state.isAdmin = true;
+        closeModal();
+        showScreen("admin");
+      }
       function openAdmin() {
-        showModal("ACCESO ADMIN", '<label class="eyebrow" for="admin-pin">PIN DE ADMINISTRADOR</label><input id="admin-pin" class="field mt-1 text-center text-xl tracking-[.5em]" type="password" inputmode="numeric" maxlength="4" placeholder="••••"><button id="verify-pin" class="btn btn-primary mt-3 w-full">DESBLOQUEAR</button><p class="text-center text-[10px] text-slate-500">PIN demo: 2026</p>');
-        $("verify-pin").onclick = () => { if ($("admin-pin").value === "2026") { closeModal(); showScreen("admin"); } else toast("PIN incorrecto.",true); };
+        if (!db) { toast("El panel admin requiere conexión con Supabase.", true); return; }
+        if (state.isAdmin) { showScreen("admin"); return; }
+        showModal("ACCESO ADMIN", `<p class="text-sm text-slate-300">Recibe un enlace de acceso de un solo uso en el correo administrador.</p><label class="eyebrow" for="admin-email">CORREO ADMINISTRADOR</label><input id="admin-email" class="field mt-1" type="email" autocomplete="email" value="${esc(ADMIN_EMAIL)}"><button id="send-admin-link" class="btn btn-primary mt-3 w-full">ENVIAR ENLACE DE ACCESO</button><p class="text-[10px] text-slate-500">La autorización se valida en Supabase; el correo por sí solo no concede permisos.</p>`);
+        $("send-admin-link").onclick = async () => {
+          const email = $("admin-email").value.trim().toLowerCase();
+          if (!email || !email.includes("@")) { toast("Escribe un correo válido.", true); return; }
+          const button = $("send-admin-link"); button.disabled = true; button.textContent = "ENVIANDO…";
+          const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+          button.disabled = false; button.textContent = "ENVIAR ENLACE DE ACCESO";
+          if (error) { console.error("No se pudo enviar el enlace admin:", error); toast("No se pudo enviar el enlace: " + error.message, true); return; }
+          showModal("REVISA TU CORREO", `<p class="text-sm text-slate-300">Enviamos un enlace de acceso a <strong class="text-cyan-200">${esc(email)}</strong>. Ábrelo en este navegador para continuar.</p>`);
+        };
+      }
+      async function signOutAdmin() {
+        if (!db) return;
+        const { error } = await db.auth.signOut();
+        if (error) { toast("No se pudo cerrar sesión: " + error.message, true); return; }
+        state.isAdmin = false; showScreen("home"); toast("Sesión admin cerrada.");
       }
       function fileToDataUrl(file) { return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(reader.error||new Error("No se pudo leer el archivo."));reader.readAsDataURL(file);}); }
       async function uploadImage(file, prefix) {
         if (!file) return "";
-        if (!file.type.startsWith("image/")) throw new Error("Selecciona un archivo de imagen.");
+        if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Usa una imagen JPG, PNG o WebP.");
         if (file.size > 10*1024*1024) throw new Error("La imagen debe pesar menos de 10 MB.");
         if (!db) return await fileToDataUrl(file);
         const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g,"") || "jpg";
@@ -360,12 +396,11 @@
           } else {
             if (!roundIsActive()) throw new Error("La ronda ya fue reclamada.");
             state.round = {...state.round,estado:"RECLAMADO",ganador_usuario:state.user,foto_prueba_url:proofUrl};
-            const found=state.ranking.find(x=>x.usuario===state.user);
-            if (found) { found.puntos=Number(found.puntos)+Number(state.round.puntos);found.rondas_ganadas=Number(found.rondas_ganadas||0)+1; }
-            else state.ranking.push({usuario:state.user,puntos:Number(state.round.puntos),rondas_ganadas:1});
             persistDemo();
           }
-          closeModal(); render(); showVictory(); sound("win"); vibrate([120,60,120,60,300]);
+          closeModal(); render(); sound("near"); vibrate([80,50,80]);
+          showModal("RECLAMO EN REVISIÓN", `<p class="text-sm text-slate-300">La ronda quedó bloqueada mientras un administrador valida la foto. <strong class="text-amber-200">Los puntos solo se sumarán después de la aprobación.</strong></p><button id="pending-close" class="btn btn-quiet w-full">ENTENDIDO</button>`);
+          $("pending-close").onclick = closeModal;
         } catch (e) { console.error(e); toast("No se pudo confirmar: "+(e.message||"error inesperado"),true); $("claim-submit").disabled=false; $("claim-submit").textContent="CONFIRMAR RECLAMO"; }
       }
       function showVictory() {
@@ -393,7 +428,7 @@
       }
       function startRealtime() {
         db.channel("radar-biker-live")
-          .on("postgres_changes",{event:"*",schema:"public",table:"rondas"},payload=>{ if(payload.new&&payload.new.id){ if(!state.round||payload.new.numero_ronda>=state.round.numero_ronda)state.round=payload.new; } else if(payload.eventType==="DELETE"){loadRemote().catch(e=>toast(e.message,true));} render(); if(state.round.ganador_usuario===state.user&&state.round.estado==="RECLAMADO")showVictory(); })
+          .on("postgres_changes",{event:"*",schema:"public",table:"rondas"},payload=>{ if(payload.new&&payload.new.id){ if(!state.round||payload.new.numero_ronda>=state.round.numero_ronda)state.round=payload.new; } else if(payload.eventType==="DELETE"){loadRemote().catch(e=>toast(e.message,true));} render(); if(state.user&&state.round.ganador_usuario===state.user&&state.round.estado==="RECLAMADO"&&state.round.reclamo_aprobado)showVictory(); })
           .on("postgres_changes",{event:"*",schema:"public",table:"jugadores_activos"},payload=>{ const p=payload.new;if(payload.eventType==="DELETE"){state.rivals=state.rivals.filter(x=>x.usuario!==payload.old.usuario);}else if(p&&p.usuario){state.rivals=[...state.rivals.filter(x=>x.usuario!==p.usuario),p];} drawMap(); })
           .on("postgres_changes",{event:"*",schema:"public",table:"ranking"},()=>{db.from("ranking").select("*").order("puntos",{ascending:false}).limit(100).then(({data,error})=>{if(error)console.error(error);else{state.ranking=data||[];renderRanking();}});})
           .subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")toast("Realtime no disponible; revisa la configuración del proyecto.",true);});
@@ -403,45 +438,51 @@
         if(!title||!address||!prize||!Number.isInteger(points)||points<1){toast("Completa título, zona, premio y puntos válidos.",true);return;}
         const btn=$("publish-round");btn.disabled=true;btn.textContent="PUBLICANDO…";
         try{
+          if(!db||!state.isAdmin)throw new Error("Se requiere sesión administrativa verificada.");
           const clue=await uploadImage(file,"pista");
-          const next={numero_ronda:Number(state.round.numero_ronda||0)+1,titulo:title,direccion:address,premio:prize,puntos,lat:state.coords.lat,lng:state.coords.lng,foto_pista_url:clue,estado:"ACTIVO",ganador_usuario:null,foto_prueba_url:null};
-          if(db){const {error}=await db.from("rondas").insert(next);if(error)throw error;await loadRemote();}
-          else{state.round={...next,id:Date.now()};persistDemo();render();}
+          const {data,error}=await db.rpc("publish_round",{p_titulo:title,p_direccion:address,p_premio:prize,p_puntos:points,p_lat:state.coords.lat,p_lng:state.coords.lng,p_foto_pista_url:clue||null});
+          if(error)throw error;
+          if(!data)throw new Error("No se pudo crear la ronda.");
+          await loadRemote();
           toast("Nueva ronda publicada.");showScreen("home");
         }catch(e){console.error(e);toast("No se pudo publicar: "+(e.message||"error"),true);}
         finally{btn.disabled=false;btn.textContent="PUBLICAR RONDA ↗";}
       }
       async function reopenRound() {
         try{
-          if(db){const {error}=await db.from("rondas").update({estado:"ACTIVO",ganador_usuario:null,foto_prueba_url:null}).eq("id",state.round.id);if(error)throw error;await loadRemote();}
-          else{state.round={...state.round,estado:"ACTIVO",ganador_usuario:null,foto_prueba_url:null};persistDemo();render();}
+          if(!db||!state.isAdmin)throw new Error("Se requiere sesión administrativa verificada.");
+          const {data,error}=await db.rpc("reopen_round",{p_round_id:state.round.id});
+          if(error)throw error;if(!data)throw new Error("No hay un reclamo anulable.");
+          await loadRemote();
           toast("Reclamo anulado. La ronda volvió a estar activa.");
         }catch(e){toast("No se pudo reactivar: "+e.message,true);}
       }
       async function approveClaim() {
         if(state.round.estado!=="RECLAMADO"||!state.round.ganador_usuario)return;
         try{
-          if(db){const {error}=await db.from("rondas").update({reclamo_aprobado:true}).eq("id",state.round.id);if(error)throw error;await loadRemote();}
-          else{state.round={...state.round,reclamo_aprobado:true};persistDemo();render();}
-          toast("Reclamo aprobado. La ronda permanece bloqueada.");
+          if(!db||!state.isAdmin)throw new Error("Se requiere sesión administrativa verificada.");
+          const {data,error}=await db.rpc("approve_claim",{p_round_id:state.round.id});
+          if(error)throw error;if(!data)throw new Error("El reclamo ya fue aprobado o no existe.");
+          await loadRemote();
+          toast("Reclamo aprobado y puntos otorgados.");
         }catch(e){toast("No se pudo aprobar: "+e.message,true);}
       }
       async function resetRanking() {
         const ok=window.confirm("¿Reiniciar todos los puntos de temporada? Esta acción no se puede deshacer.");
         if(!ok)return;
-        try{if(db){const {error}=await db.from("ranking").delete().not("usuario","is",null);if(error)throw error;}state.ranking=[];persistDemo();renderRanking();toast("Tabla de puntos reiniciada.");}
+        try{if(!db||!state.isAdmin)throw new Error("Se requiere sesión administrativa verificada.");const {error}=await db.rpc("reset_ranking");if(error)throw error;state.ranking=[];renderRanking();toast("Tabla de puntos reiniciada.");}
         catch(e){toast("No se pudo reiniciar: "+e.message,true);}
       }
       function showClue() {
         const url=state.round.foto_pista_url;
         showModal("FOTO PISTA",url?`<img src="${esc(url)}" alt="Foto de referencia" class="max-h-[65vh] w-full rounded-xl object-contain">`:'<div class="grid min-h-48 place-items-center rounded-xl border border-dashed border-slate-700 bg-black/20 p-6 text-center"><div><div class="text-4xl">▧</div><p class="mt-3 text-sm text-slate-400">El administrador aún no ha subido una foto pista.</p></div></div>');
       }
-      $("home-logo").onclick=()=>showScreen("home");$("admin-open").onclick=openAdmin;$("join-button").onclick=joinRadar;
+      $("home-logo").onclick=()=>showScreen("home");$("admin-open").onclick=openAdmin;$("admin-signout").onclick=signOutAdmin;$("join-button").onclick=joinRadar;
       $("username").addEventListener("keydown",e=>{if(e.key==="Enter")joinRadar();});
       $("radar-back").onclick=()=>showScreen("home");$("admin-back").onclick=()=>showScreen("home");$("victory-home").onclick=()=>showScreen("home");
       $("modal-close").onclick=closeModal;$("modal").addEventListener("click",e=>{if(e.target===$("modal"))closeModal();});
       $("clue-button").onclick=showClue;
-      $("claim-button").onclick=()=>showModal("PRUEBA DE HALLAZGO",'<p class="text-sm text-slate-300">Toma o elige una foto donde se vea el sticker. La ronda se bloqueará al confirmar.</p><input id="proof-file" class="field text-xs" type="file" accept="image/*" capture="environment"><p class="text-[10px] text-slate-500">Imagen JPG/PNG/HEIC · máximo 10 MB.</p><button id="claim-submit" class="btn btn-danger w-full">CONFIRMAR RECLAMO</button>');
+      $("claim-button").onclick=()=>showModal("PRUEBA DE HALLAZGO",'<p class="text-sm text-slate-300">Toma o elige una foto donde se vea el sticker. La ronda se bloqueará al confirmar.</p><input id="proof-file" class="field text-xs" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"><p class="text-[10px] text-slate-500">Imagen JPG/PNG/WebP · máximo 10 MB.</p><button id="claim-submit" class="btn btn-danger w-full">CONFIRMAR RECLAMO</button>');
       $("claim-button").addEventListener("click",()=>{setTimeout(()=>{if($("claim-submit"))$("claim-submit").onclick=()=>submitClaim($("proof-file").files[0]);},0);});
       $("advance-button").onclick=()=>{if(!state.pos){setPosition(DEMO_CENTER.lat,DEMO_CENTER.lng,true);return;}const target={lat:Number(state.round.lat),lng:Number(state.round.lng)},d=distanceMeters(state.pos,target);if(d<=50){setPosition(target.lat,target.lng,true);}else{const fraction=50/d;setPosition(state.pos.lat+(target.lat-state.pos.lat)*fraction,state.pos.lng+(target.lng-state.pos.lng)*fraction,true);}sound("near");vibrate(30);};
       document.querySelectorAll(".admin-tab").forEach(b=>b.onclick=()=>{const review=b.dataset.tab==="review";$("new-tab").classList.toggle("hidden",review);$("review-tab").classList.toggle("hidden",!review);document.querySelectorAll(".admin-tab").forEach(x=>x.className="admin-tab flex-1 rounded-lg py-2.5 text-xs font-bold "+(x===b?"bg-cyan-400/10 text-cyan-200":"text-slate-500"));if(review)renderReview();});
@@ -452,8 +493,17 @@
       async function init() {
         state.pos={...DEMO_CENTER}; loadDemo();
         if(db){
+          db.auth.onAuthStateChange((event,session)=>{
+            if(event==="SIGNED_IN")setTimeout(()=>refreshAdminAccess(session),0);
+            if(event==="SIGNED_OUT"){state.isAdmin=false;if(!$("admin-screen").classList.contains("hidden"))showScreen("home");}
+          });
           try{await loadRemote();startRealtime();}
           catch(e){console.error("Supabase no está listo:",e);state.mode="demo";db=null;loadDemo();toast("No se pudo conectar a Supabase; se inició el modo demo.",true);}
+          if(db){
+            const {data,error}=await db.auth.getSession();
+            if(error)console.error("No se pudo recuperar la sesión admin:",error);
+            else if(data.session)await refreshAdminAccess(data.session);
+          }
         }
         render();
       }
