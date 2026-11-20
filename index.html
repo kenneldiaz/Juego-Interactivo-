@@ -28,7 +28,7 @@
     @keyframes radar{0%{transform:scale(.65);opacity:.85}100%{transform:scale(2.1);opacity:0}}
     .scan{background:linear-gradient(90deg,transparent,rgba(0,242,254,.12),transparent);background-size:200% 100%;animation:scan 4s linear infinite}
     @keyframes scan{to{background-position:-200% 0}}
-        .leaflet-container{background:#080b10;font-family:Inter,sans-serif}.leaflet-control-attribution{font-size:9px!important;background:rgba(5,7,10,.75)!important;color:#8291a3!important}.leaflet-control-attribution a{color:#00c7d4!important}     .radar-tiles{filter:grayscale(1) invert(1) brightness(.66) contrast(1.05)}
+    .leaflet-container{background:#080b10;font-family:Inter,sans-serif}.leaflet-control-attribution{font-size:9px!important;background:rgba(5,7,10,.75)!important;color:#8291a3!important}.leaflet-control-attribution a{color:#00c7d4!important}
     .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#10151d;color:#e8edf5}.leaflet-popup-content{margin:10px}
     .map-label{color:#e8edf5;background:#0d1017;border:1px solid #00f2fe;border-radius:5px;padding:3px 6px;font-size:10px;white-space:nowrap;box-shadow:0 0 12px #00f2fe44}
     .target-icon{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ff2a5f;color:white;font-size:18px;border:2px solid white;box-shadow:0 0 22px #ff2a5f;animation:targetpulse 1.4s infinite}
@@ -280,7 +280,7 @@
         const el = $(which === "live" ? "live-map" : "admin-map");
         const center = which === "live" ? (state.pos || DEMO_CENTER) : state.coords;
         const map = L.map(el, { zoomControl:false, attributionControl:true }).setView([center.lat,center.lng], which === "live" ? 16 : 15);
-                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, className:"radar-tiles", attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' }).addTo(map);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' }).addTo(map);
         L.control.zoom({ position:"bottomright" }).addTo(map); state.maps[which] = map;
         if (which === "admin") map.on("click", e => { state.coords = {lat:e.latlng.lat,lng:e.latlng.lng}; updateCoordLabel(); drawAdminMap(); });
       }
