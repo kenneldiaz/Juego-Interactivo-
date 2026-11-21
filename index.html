@@ -135,6 +135,11 @@
           <div class="grid grid-cols-2 gap-2"><button id="admin-gps" class="btn btn-quiet text-[10px]">⌖ USAR MI GPS ACTUAL</button><button id="publish-round" class="btn btn-primary text-[10px]">PUBLICAR RONDA ↗</button></div>
         </div>
         <div id="review-tab" class="panel hidden space-y-4 rounded-2xl p-4">
+          <div class="border-b border-slate-800 pb-3">
+            <div class="eyebrow">Control de búsqueda</div>
+            <p class="mt-1 text-[10px] text-slate-400">Cierra la ronda activa sin ganador ni puntos.</p>
+            <button id="cancel-search" class="btn btn-danger mt-3 w-full text-[10px]" disabled>× CANCELAR BÚSQUEDA</button>
+          </div>
           <div class="eyebrow">Reclamo de la ronda actual</div>
           <div id="claim-review" class="rounded-xl border border-slate-800 bg-black/20 p-3 text-sm text-slate-400">No hay reclamo pendiente.</div>
           <div class="grid grid-cols-2 gap-2"><button id="approve-claim" class="btn btn-green text-[10px]" disabled>✓ APROBAR</button><button id="reopen-round" class="btn btn-danger text-[10px]" disabled>ANULAR / REACTIVAR</button></div>
@@ -215,9 +220,11 @@
       function showModal(title, html) { $("modal-title").textContent = title; $("modal-content").innerHTML = html; $("modal").classList.remove("hidden"); $("modal").classList.add("flex"); }
       function closeModal() { $("modal").classList.add("hidden"); $("modal").classList.remove("flex"); }
       function roundIsActive() { return state.round && state.round.estado === "ACTIVO"; }
+      function roundIsCancelled() { return state.round && state.round.estado === "RECLAMADO" && !state.round.ganador_usuario; }
 
       function render() {
         const r = state.round;
+        const active = roundIsActive(), cancelled = roundIsCancelled();
         $("connection-badge").textContent = state.mode === "remote" ? "SUPABASE LIVE" : "DEMO";
         $("connection-badge").className = "rounded-full border px-2 py-1 text-[9px] font-bold tracking-widest " + (state.mode === "remote" ? "border-emerald-500/40 text-emerald-300" : "border-slate-700 text-slate-400");
         $("mode-label").textContent = state.mode === "remote" ? "SUPABASE REALTIME" : "MODO DEMO";
@@ -226,12 +233,12 @@
         $("round-address").textContent = r.direccion || "Zona por confirmar";
         $("round-prize").textContent = r.premio || "Premio sorpresa";
         $("round-points").textContent = Number(r.puntos || 0).toLocaleString("es-MX");
-        $("round-state").textContent = roundIsActive() ? "● ACTIVO" : "● RECLAMADO / BLOQUEADO";
-        $("round-state").className = "rounded-full px-2.5 py-1 text-[9px] font-bold tracking-[.14em] " + (roundIsActive() ? "bg-emerald-400/10 text-emerald-300" : "bg-rose-500/10 text-rose-300");
-        $("winner-line").classList.toggle("hidden", roundIsActive());
-        $("winner-line").textContent = r.ganador_usuario ? (r.reclamo_aprobado ? "Sticker Encontrado por @" + r.ganador_usuario + " · Ronda bloqueada." : "Prueba de @" + r.ganador_usuario + " pendiente de validación · puntos sin otorgar.") : "Ronda bloqueada.";
-        $("join-button").disabled = !roundIsActive();
-        $("join-button").classList.toggle("opacity-40", !roundIsActive());
+        $("round-state").textContent = active ? "● ACTIVO" : cancelled ? "● BÚSQUEDA CANCELADA" : "● RECLAMADO / BLOQUEADO";
+        $("round-state").className = "rounded-full px-2.5 py-1 text-[9px] font-bold tracking-[.14em] " + (active ? "bg-emerald-400/10 text-emerald-300" : cancelled ? "bg-amber-500/10 text-amber-300" : "bg-rose-500/10 text-rose-300");
+        $("winner-line").classList.toggle("hidden", active);
+        $("winner-line").textContent = r.ganador_usuario ? (r.reclamo_aprobado ? "Sticker Encontrado por @" + r.ganador_usuario + " · Ronda bloqueada." : "Prueba de @" + r.ganador_usuario + " pendiente de validación · puntos sin otorgar.") : cancelled ? "Búsqueda cancelada por el administrador. No hubo ganador ni se otorgaron puntos." : "Ronda bloqueada.";
+        $("join-button").disabled = !active;
+        $("join-button").classList.toggle("opacity-40", !active);
         renderRanking();
         renderReview();
         if (state.maps.live) { drawMap(); requestRoadRoute(); }
@@ -243,11 +250,14 @@
       }
       function renderReview() {
         const claimed = state.round.estado === "RECLAMADO" && state.round.ganador_usuario;
+        const cancelled = roundIsCancelled();
+        $("cancel-search").disabled = !roundIsActive();
         $("approve-claim").disabled = !claimed || state.round.reclamo_aprobado === true;
-        $("reopen-round").disabled = !claimed;
+        $("reopen-round").disabled = !claimed && !cancelled;
+        $("reopen-round").textContent = cancelled ? "REACTIVAR BÚSQUEDA" : "ANULAR / REACTIVAR";
         $("claim-review").innerHTML = claimed
           ? `<div class="font-semibold text-white">${state.round.reclamo_aprobado?"Sticker Encontrado por":"Reclamo de"} <span class="text-cyan-200">@${esc(state.round.ganador_usuario)}</span></div><div class="mt-1 text-[10px] ${state.round.reclamo_aprobado?"text-emerald-300":"text-amber-300"}">${state.round.reclamo_aprobado?"RECLAMO APROBADO · PUNTOS OTORGADOS":"PENDIENTE DE VALIDACIÓN · SIN PUNTOS"}</div>${state.round.foto_prueba_url ? `<img src="${esc(state.round.foto_prueba_url)}" alt="Foto de prueba" class="mt-3 max-h-56 w-full rounded-lg object-cover">` : '<p class="mt-2 text-xs text-amber-300">No hay URL de foto de prueba guardada.</p>'}<p class="mt-2 text-[10px] text-slate-500">El reclamo bloqueó esta ronda automáticamente.</p>`
-          : "No hay reclamo pendiente.";
+          : cancelled ? "Búsqueda cancelada. No hubo ganador ni se otorgaron puntos." : "No hay reclamo pendiente.";
       }
       function renderAdminPlayers() {
         const host = $("admin-players");
@@ -670,7 +680,15 @@
       }
       function startRealtime() {
         db.channel("radar-biker-live")
-          .on("postgres_changes",{event:"*",schema:"public",table:"rondas"},payload=>{ if(payload.new&&payload.new.id){ if(!state.round||payload.new.numero_ronda>=state.round.numero_ronda)state.round=payload.new; } else if(payload.eventType==="DELETE"){loadRemote().catch(e=>toast(e.message,true));} render(); if(state.user&&state.round.ganador_usuario===state.user&&state.round.estado==="RECLAMADO"&&state.round.reclamo_aprobado)showVictory(); })
+          .on("postgres_changes",{event:"*",schema:"public",table:"rondas"},payload=>{
+            const previous=state.round;
+            if(payload.new&&payload.new.id){
+              if(!state.round||payload.new.numero_ronda>=state.round.numero_ronda)state.round=payload.new;
+              if(previous&&previous.id===payload.new.id&&previous.estado==="ACTIVO"&&payload.new.estado==="RECLAMADO"&&!payload.new.ganador_usuario&&!$("radar-screen").classList.contains("hidden"))showScreen("home");
+            }else if(payload.eventType==="DELETE"){loadRemote().catch(e=>toast(e.message,true));}
+            render();
+            if(state.user&&state.round.ganador_usuario===state.user&&state.round.estado==="RECLAMADO"&&state.round.reclamo_aprobado)showVictory();
+          })
           .on("postgres_changes",{event:"*",schema:"public",table:"jugadores_activos"},payload=>{ const p=payload.new;if(payload.eventType==="DELETE"){state.rivals=state.rivals.filter(x=>x.usuario!==payload.old.usuario);}else if(p&&p.usuario&&Date.now()-new Date(p.updated_at).getTime()<=120000){state.rivals=[...state.rivals.filter(x=>x.usuario!==p.usuario),p];}else if(p&&p.usuario){state.rivals=state.rivals.filter(x=>x.usuario!==p.usuario);} drawMap(); })
           .on("postgres_changes",{event:"*",schema:"public",table:"ranking"},()=>{db.from("ranking").select("*").order("puntos",{ascending:false}).limit(100).then(({data,error})=>{if(error)console.error(error);else{state.ranking=data||[];renderRanking();if(state.isAdmin)loadAdminPlayers().catch(e=>console.error("No se pudo actualizar la lista de usuarios:",e));}});})
           .subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")toast("Realtime no disponible; revisa la configuración del proyecto.",true);});
@@ -696,8 +714,19 @@
           const {data,error}=await db.rpc("reopen_round",{p_round_id:state.round.id});
           if(error)throw error;if(!data)throw new Error("No hay un reclamo anulable.");
           await loadRemote();
-          toast("Reclamo anulado. La ronda volvió a estar activa.");
+          toast("La ronda volvió a estar activa.");
         }catch(e){toast("No se pudo reactivar: "+e.message,true);}
+      }
+      async function cancelSearch() {
+        if(!roundIsActive())return;
+        if(!window.confirm("¿Cancelar la búsqueda actual? Todos dejarán de buscar y no habrá ganador ni puntos."))return;
+        try{
+          if(!db||!state.isAdmin)throw new Error("Se requiere sesión administrativa verificada.");
+          const {data,error}=await db.rpc("cancel_round",{p_round_id:state.round.id});
+          if(error)throw error;if(!data)throw new Error("La ronda ya no está activa.");
+          await loadRemote();
+          toast("Búsqueda cancelada. No se otorgaron puntos.");
+        }catch(e){console.error(e);toast("No se pudo cancelar la búsqueda: "+e.message,true);}
       }
       async function approveClaim() {
         if(state.round.estado!=="RECLAMADO"||!state.round.ganador_usuario)return;
@@ -730,7 +759,7 @@
       $("advance-button").onclick=advanceSimulation;
       document.querySelectorAll(".admin-tab").forEach(b=>b.onclick=()=>{const review=b.dataset.tab==="review";$("new-tab").classList.toggle("hidden",review);$("review-tab").classList.toggle("hidden",!review);document.querySelectorAll(".admin-tab").forEach(x=>x.className="admin-tab flex-1 rounded-lg py-2.5 text-xs font-bold "+(x===b?"bg-cyan-400/10 text-cyan-200":"text-slate-500"));if(review){renderReview();loadAdminPlayers().catch(e=>{console.error(e);toast("No se pudo cargar la lista de usuarios: "+e.message,true);});}});
       $("admin-players").addEventListener("click",event=>{const button=event.target.closest("button[data-player-action]");if(!button)return;const usuario=button.dataset.player;if(button.dataset.playerAction==="clear")clearPlayerPoints(usuario);if(button.dataset.playerAction==="delete")deletePlayer(usuario);});
-      $("publish-round").onclick=publishRound;$("reopen-round").onclick=reopenRound;$("approve-claim").onclick=approveClaim;$("reset-ranking").onclick=resetRanking;
+      $("publish-round").onclick=publishRound;$("cancel-search").onclick=cancelSearch;$("reopen-round").onclick=reopenRound;$("approve-claim").onclick=approveClaim;$("reset-ranking").onclick=resetRanking;
       $("admin-gps").onclick=()=>{if(!navigator.geolocation){toast("GPS no disponible.",true);return;}navigator.geolocation.getCurrentPosition(p=>{state.coords={lat:p.coords.latitude,lng:p.coords.longitude};updateCoordLabel();drawAdminMap();},e=>toast("No se obtuvo GPS: "+e.message,true),{enableHighAccuracy:true,timeout:15000});};
       $("copy-result").onclick=async()=>{const text=`¡Encontré el sticker de RADAR BIKER! 🏁 @${state.user} suma ${state.round.puntos} puntos en la cacería real. #RadarBiker`;try{await navigator.clipboard.writeText(text);toast("Resultado copiado. ¡Pégalo en TikTok!");}catch(e){showModal("COPIA TU RESULTADO",`<textarea class="field min-h-28" readonly>${esc(text)}</textarea>`);}};
       window.addEventListener("beforeunload",()=>{if(state.gpsWatch!=null)navigator.geolocation.clearWatch(state.gpsWatch);});
