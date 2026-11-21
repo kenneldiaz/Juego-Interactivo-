@@ -37,9 +37,11 @@
     .leaflet-container{background:#080b10;font-family:Inter,sans-serif}.leaflet-control-attribution{font-size:9px!important;background:rgba(5,7,10,.75)!important;color:#8291a3!important}.leaflet-control-attribution a{color:#00c7d4!important}
     .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#10151d;color:#e8edf5}.leaflet-popup-content{margin:10px}
     .map-label{color:#e8edf5;background:#0d1017;border:1px solid #00f2fe;border-radius:5px;padding:3px 6px;font-size:10px;white-space:nowrap;box-shadow:0 0 12px #00f2fe44}
+    .map-label-rival{border-color:#ff6b00;box-shadow:0 0 12px #ff6b0066}
     .target-icon{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ff2a5f;color:white;font-size:18px;border:2px solid white;box-shadow:0 0 22px #ff2a5f;animation:targetpulse 1.4s infinite}
     .player-icon{width:18px;height:18px;border-radius:50%;background:#00f2fe;border:3px solid white;box-shadow:0 0 18px #00f2fe}
-    .rival-icon{width:14px;height:14px;border:2px solid white;border-radius:50%;background:#ff6b00;box-shadow:0 0 14px #ff6b00}
+    .rival-icon{width:26px;height:26px;display:grid;place-items:center;border:2px solid white;border-radius:50%;background:#ff6b00;color:white;box-shadow:0 0 14px #ff6b00}
+    .rival-icon svg{width:15px;height:15px;fill:currentColor}
     @keyframes targetpulse{50%{box-shadow:0 0 30px #ff2a5f,0 0 0 8px #ff2a5f22}}
     .safe-bottom{padding-bottom:max(1rem,env(safe-area-inset-bottom))}
     .hide-scroll::-webkit-scrollbar{display:none}.hide-scroll{scrollbar-width:none}
@@ -505,8 +507,8 @@
         $("rival-count").textContent = liveRivals.length + (liveRivals.length===1 ? " RIVAL" : " RIVALES");
         liveRivals.forEach(p => {
           let marker = state.markers.rivals[p.usuario];
-          if (!marker) marker = state.markers.rivals[p.usuario] = L.marker([p.lat,p.lng],{icon:icon('<span class="rival-icon" aria-label="Otro cazador"></span>',[14,14],[7,7]),keyboard:false}).addTo(map);
-          marker.setLatLng([p.lat,p.lng]); marker.bindTooltip("@"+esc(p.usuario),{permanent:false,direction:"top",className:"map-label"});
+          if (!marker) marker = state.markers.rivals[p.usuario] = L.marker([p.lat,p.lng],{icon:icon('<span class="rival-icon" aria-label="Otro cazador"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5.33 0-8 2.67-8 5v3h16v-3c0-2.33-2.67-5-8-5z"/></svg></span>',[26,26],[13,13]),keyboard:false}).addTo(map);
+          marker.setLatLng([p.lat,p.lng]); marker.bindTooltip("@"+esc(p.usuario),{permanent:true,direction:"bottom",className:"map-label map-label-rival",offset:[0,8]});
         });
         Object.keys(state.markers.rivals).forEach(name => { if (!liveRivals.some(p => p.usuario === name)) { map.removeLayer(state.markers.rivals[name]); delete state.markers.rivals[name]; } });
         if (!state.markers.didFit) { map.fitBounds([player,target],{padding:[45,45],maxZoom:17}); state.markers.didFit=true; }
