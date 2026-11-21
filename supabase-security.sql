@@ -1,5 +1,6 @@
 -- Radar Biker: RLS and privileged game operations.
 -- Run in the Supabase SQL Editor as the project owner.
+-- After supabase-player-admin.sql is installed, this script preserves its device-binding restrictions.
 
 create table if not exists public.radar_admins (
   email text primary key check (email = lower(email))
@@ -72,27 +73,37 @@ create policy "Radar: leer jugadores recientes"
   on public.jugadores_activos for select to anon, authenticated
   using (updated_at >= now() - interval '2 minutes');
 
-create policy "Radar: publicar posición"
-  on public.jugadores_activos for insert to anon, authenticated
-  with check (
-    usuario ~ '^[A-Za-z0-9._]{1,24}$'
-    and lat between -90 and 90
-    and lng between -180 and 180
-    and updated_at between now() - interval '2 minutes' and now() + interval '30 seconds'
-  );
-
-create policy "Radar: actualizar posición"
-  on public.jugadores_activos for update to anon, authenticated
-  using (true)
-  with check (
-    usuario ~ '^[A-Za-z0-9._]{1,24}$'
-    and lat between -90 and 90
-    and lng between -180 and 180
-    and updated_at between now() - interval '2 minutes' and now() + interval '30 seconds'
-  );
-
 revoke all on public.jugadores_activos from public, anon, authenticated;
-grant select, insert, update on public.jugadores_activos to anon, authenticated;
+grant select on public.jugadores_activos to anon, authenticated;
+
+do $$
+begin
+  if to_regclass('public.radar_player_devices') is null then
+    execute $policy$
+      create policy "Radar: publicar posición"
+        on public.jugadores_activos for insert to anon, authenticated
+        with check (
+          usuario ~ '^[A-Za-z0-9._]{1,24}$'
+          and lat between -90 and 90
+          and lng between -180 and 180
+          and updated_at between now() - interval '2 minutes' and now() + interval '30 seconds'
+        )
+    $policy$;
+    execute $policy$
+      create policy "Radar: actualizar posición"
+        on public.jugadores_activos for update to anon, authenticated
+        using (true)
+        with check (
+          usuario ~ '^[A-Za-z0-9._]{1,24}$'
+          and lat between -90 and 90
+          and lng between -180 and 180
+          and updated_at between now() - interval '2 minutes' and now() + interval '30 seconds'
+        )
+    $policy$;
+    execute 'grant insert, update on public.jugadores_activos to anon, authenticated';
+  end if;
+end
+$$;
 
 drop policy if exists "Ranking público: leer" on public.ranking;
 drop policy if exists "Ranking público: reiniciar" on public.ranking;
@@ -105,40 +116,49 @@ create policy "Ranking: lectura pública"
 revoke all on public.ranking from public, anon, authenticated;
 grant select on public.ranking to anon, authenticated;
 
-create or replace function public.claim_round(
-  p_round_id bigint,
-  p_usuario text,
-  p_foto_prueba_url text
-)
-returns boolean
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
+do $$
 begin
-  if p_usuario is null or p_usuario !~ '^[A-Za-z0-9._]{1,24}$' then
-    raise exception 'Usuario inválido';
+  if to_regclass('public.radar_player_devices') is null then
+    execute $create$
+      create or replace function public.claim_round(
+        p_round_id bigint,
+        p_usuario text,
+        p_foto_prueba_url text
+      )
+      returns boolean
+      language plpgsql
+      security definer
+      set search_path = public, pg_temp
+      as $function$
+      begin
+        if p_usuario is null or p_usuario !~ '^[A-Za-z0-9._]{1,24}$' then
+          raise exception 'Usuario inválido';
+        end if;
+
+        if p_foto_prueba_url is null
+           or p_foto_prueba_url !~ '^https://djkbubafjktjapuouseq\.supabase\.co/storage/v1/object/public/stickers-fotos/prueba/[A-Za-z0-9._-]+$' then
+          raise exception 'La foto de prueba debe estar en el bucket de pruebas';
+        end if;
+
+        update public.rondas
+        set estado = 'RECLAMADO',
+            ganador_usuario = p_usuario,
+            foto_prueba_url = p_foto_prueba_url,
+            reclamo_aprobado = false
+        where id = p_round_id
+          and estado = 'ACTIVO';
+
+        return found;
+      end;
+      $function$
+    $create$;
+    execute 'revoke all on function public.claim_round(bigint, text, text) from public';
+    execute 'grant execute on function public.claim_round(bigint, text, text) to anon, authenticated';
+  else
+    execute 'drop function if exists public.claim_round(bigint, text, text)';
   end if;
-
-  if p_foto_prueba_url is null
-     or p_foto_prueba_url !~ '^https://djkbubafjktjapuouseq\.supabase\.co/storage/v1/object/public/stickers-fotos/prueba/[A-Za-z0-9._-]+$' then
-    raise exception 'La foto de prueba debe estar en el bucket de pruebas';
-  end if;
-
-  update public.rondas
-  set estado = 'RECLAMADO',
-      ganador_usuario = p_usuario,
-      foto_prueba_url = p_foto_prueba_url,
-      reclamo_aprobado = false
-  where id = p_round_id
-    and estado = 'ACTIVO';
-
-  return found;
-end;
+end
 $$;
-
-revoke all on function public.claim_round(bigint, text, text) from public;
-grant execute on function public.claim_round(bigint, text, text) to anon, authenticated;
 
 create or replace function public.approve_claim(p_round_id bigint)
 returns boolean
@@ -340,6 +360,7 @@ drop policy if exists "Fotos públicas: subir" on storage.objects;
 drop policy if exists "Radar: fotos públicas" on storage.objects;
 drop policy if exists "Radar: jugadores suben pruebas" on storage.objects;
 drop policy if exists "Radar: admin sube pistas" on storage.objects;
+drop policy if exists "Radar: admin borra pruebas" on storage.objects;
 
 create policy "Radar: fotos públicas"
   on storage.objects for select to anon, authenticated
@@ -361,6 +382,14 @@ create policy "Radar: admin sube pistas"
     and (storage.foldername(name))[1] = 'pista'
     and name ~ '^pista/[A-Za-z0-9._-]+\.(jpg|jpeg|png|webp)$'
     and storage.extension(name) in ('jpg', 'jpeg', 'png', 'webp')
+    and public.is_radar_admin()
+  );
+
+create policy "Radar: admin borra pruebas"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'stickers-fotos'
+    and (storage.foldername(name))[1] = 'prueba'
     and public.is_radar_admin()
   );
 
